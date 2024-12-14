@@ -1,0 +1,24 @@
+"C:\Users\jerne\AppData\Local\Programs\Python\Python38\python.exe" -m venv venv  
+
+
+ .\venv\Scripts\activate
+
+
+ git submodule update --init --remote
+
+ cd .\pacman-contest\
+
+
+ pip install -e .    
+
+
+ pip install-r requirements.txt
+
+ cd .\src\
+               
+
+ cd .\contest\
+
+
+
+ python capture.py -r "C:/Users/jerne/Desktop/Mind/FRI - LJ/GitHubRepos/pacman-contest/agents/team_name_1/my_team.py" -b "C:/Users/jerne/Desktop/Mind/FRI - LJ/GitHubRepos/pacman-contest/src/contest/baseline_team.py"

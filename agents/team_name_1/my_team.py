@@ -137,27 +137,91 @@ class ReflexCaptureAgent(CaptureAgent):
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
     """
-  A reflex agent that seeks food. This is an agent
-  we give you to get an idea of what an offensive agent might look like,
-  but it is by no means the best or only way to build an offensive agent.
-  """
+    A reflex agent that collects food aggressively but returns to its side
+    to save points once it has collected 2 points.
+    """
+
+    def choose_action(self, game_state):
+        """
+        Choose the best action, returning to the safe side if carrying at least 2 points.
+        """
+        actions = game_state.get_legal_actions(self.index)
+        my_state = game_state.get_agent_state(self.index)
+        my_pos = game_state.get_agent_position(self.index)
+
+        # Check if the agent is carrying enough points to return to safety
+        if my_state.num_carrying >= 2 and my_state.is_pacman:
+            # Prioritize returning to the home side
+            best_action = None
+            best_distance = float("inf")
+
+            for action in actions:
+                successor = self.get_successor(game_state, action)
+                successor_pos = successor.get_agent_position(self.index)
+
+                # Calculate distance to the starting side
+                if not successor.get_agent_state(self.index).is_pacman:
+                    # If the action leads back home, prefer it
+                    dist = self.get_maze_distance(self.start, successor_pos)
+                    if dist < best_distance:
+                        best_action = action
+                        best_distance = dist
+
+            if best_action:
+                return best_action
+
+        # Otherwise, act offensively
+        return super().choose_action(game_state)
 
     def get_features(self, game_state, action):
         features = util.Counter()
         successor = self.get_successor(game_state, action)
         food_list = self.get_food(successor).as_list()
-        features['successor_score'] = -len(food_list)  # self.get_score(successor)
+        capsules = self.get_capsules(successor)
+        my_state = successor.get_agent_state(self.index)
+        my_pos = my_state.get_position()
 
-        # Compute distance to the nearest food
+        # Feature: Number of food pellets left (negative for more food collected)
+        features['successor_score'] = -len(food_list)
 
-        if len(food_list) > 0:  # This should always be True,  but better safe than sorry
-            my_pos = successor.get_agent_state(self.index).get_position()
+        # Feature: Distance to the nearest food
+        if len(food_list) > 0:
             min_distance = min([self.get_maze_distance(my_pos, food) for food in food_list])
             features['distance_to_food'] = min_distance
+
+        # Feature: Distance to the nearest capsule
+        if len(capsules) > 0:
+            min_capsule_distance = min([self.get_maze_distance(my_pos, capsule) for capsule in capsules])
+            features['distance_to_capsule'] = min_capsule_distance
+
+        # Feature: Distance to the nearest enemy defender
+        enemies = [successor.get_agent_state(i) for i in self.get_opponents(successor)]
+        defenders = [a for a in enemies if not a.is_pacman and a.get_position() is not None]
+        if len(defenders) > 0:
+            min_defender_distance = min([self.get_maze_distance(my_pos, defender.get_position()) for defender in defenders])
+            features['defender_distance'] = min_defender_distance
+            # Add a penalty for being too close to defenders
+            if min_defender_distance <= 2:
+                features['too_close_to_defender'] = 1
+
+        # Feature: Food carried (points collected but not saved yet)
+        features['food_carrying'] = my_state.num_carrying
+
         return features
 
     def get_weights(self, game_state, action):
-        return {'successor_score': 100, 'distance_to_food': -1}
+        return {
+            'successor_score': 100,          # Prioritize collecting food
+            'distance_to_food': -3,         # Aggressively pursue food
+            'distance_to_capsule': -10,     # Prioritize capsules
+            'defender_distance': 5,         # Maintain a safe distance from defenders
+            'too_close_to_defender': -100,  # Strong penalty for being too close
+            'food_carrying': -50,           # Encourage carrying more food
+            'on_own_side': 500              # Strong weight for returning to own side
+        }
+
+
+
 
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
